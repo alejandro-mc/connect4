@@ -21,6 +21,7 @@ class SingleGame:
         self.movesleft = h*w
         self.player1 = True
         self.status = Status.INPROGRESS
+        self.movehistory = []
 
     #the draw function should be very flexible so the developer must provide it
     #draw applies the supplied draw function on the __board__ data 
@@ -51,6 +52,7 @@ class SingleGame:
             
             i,j = self.__movespercol__[col] - 1, col 
             self.__board__[i][j] = currentplayer
+            self.movehistory.append(col)
             
             #decrement available moves for column number col
             self.__movespercol__[col] -= 1
@@ -66,6 +68,27 @@ class SingleGame:
         else:
             raise Exception('Illegal Move',col)
     
+    def undo_move(self):#undoes the latest move
+        
+        if len(self.movehistory) == 0:
+            raise Exception('No moves to undo')
+             
+        col = self.movehistory.pop()
+        
+        self.player1 = not self.player1
+        
+        self.__movespercol__[col] += 1
+        
+        
+        i,j = self.__movespercol__[col] -1, col
+        self.__board__[i][j] = 0
+        
+        
+        self.movesleft +=1
+        
+        #undoing a move always causes the game to be in progress
+        self.status = Status.INPROGRESS
+        
     
     def __is_winning_line(self,line,player):
         count = 0
@@ -191,3 +214,202 @@ def defaultdraw(board):
             print(symbols[i],end=' ')
         
         print('\n')
+        
+        
+def min_score(game,maxdepth):
+    
+    #check base cases
+    if game.status != Status.INPROGRESS:
+        return score_terminal(game),0
+    
+    if maxdepth == 0:
+        return 0,0
+    
+    #-----------------find the lowest maximum------------
+    lowest_max = 100
+    lowest_max_move = 100
+    
+    for move in game.getavailmoves():
+        game.make_move(move)
+        #print('trying move',move)
+        #game.draw(defaultdraw)
+        tempmax = max_score(game,maxdepth - 1)[0]
+        #print('had score of',tempmax)
+        game.undo_move()
+        if tempmax < lowest_max:
+            lowest_max = tempmax
+            lowest_max_move = move
+    
+    return lowest_max,lowest_max_move
+
+def max_score(game,maxdepth):
+    
+    #check base cases
+    if game.status != Status.INPROGRESS:
+        return score_terminal(game) , 0
+    
+    if maxdepth == 0:
+        return score_board(game),0
+    
+    #-----------------find the highest minimum------------
+    highest_min   = -100
+    highest_min_move = -1
+    for move in game.getavailmoves():
+        game.make_move(move)
+        #print('trying move',move)
+        #game.draw(defaultdraw)
+        tempmin = min_score(game,maxdepth-1)[0]
+        #print('had score of',tempmin)
+        game.undo_move()
+        if tempmin > highest_min:
+            highest_min = tempmin
+            highest_min_move = move
+    
+    return highest_min,highest_min_move
+
+def score_terminal(game):
+    
+    if game.status == Status.PLAYER1:
+        return -100
+    if game.status == Status.PLAYER2:
+        return 100
+    else:
+        return 0
+            
+def score_board(game):
+    '''
+    A simple heuristic to evaluate the board position
+    It encourages minimax to take better position when not in terminal state
+    Gives or subtracts one point for each open line of three
+    '''
+    score = 0
+    window = []
+    
+    #-------evaluate row wise-----------
+    
+    for i in range(0,game.height):
+        #init window for the row
+        window = [game.__board__[i][0]**3,
+                  game.__board__[i][1]**3,
+                  game.__board__[i][2]**3]
+        for j in range(3,game.width):
+            window.append(game.__board__[i][j]**3)
+            tempsum = sum(window)
+            window.pop(0)
+            if tempsum == 3*(2**3):
+                score += 1
+                continue
+            if tempsum == 3:
+                score -= 1
+                continue
+            
+    #-------evaluate columnwise------------
+    window = []
+    for j in range(0,game.width):
+        #init window for current column
+        window = [game.__board__[0][j]**3,
+                  game.__board__[1][j]**3,
+                  game.__board__[2][j]**3]
+        for i in range(3,game.height):
+            window.append(game.__board__[i][j]**3)
+            tempsum = sum(window)
+            window.pop(0)
+            if tempsum == 3*(2**3):
+                score += 1
+                continue
+            if tempsum == 3:
+                score -= 1
+                continue
+    
+    #--------evaluate top down diagonal---------------
+    window = []
+    #do the diagonals that start on the left side
+    for i in range(0,game.height - 4 + 1):
+        #take first 3
+        window = [game.__board__[i][0]**3,
+                  game.__board__[i+1][1]**3,
+                  game.__board__[i+2][2]**3]
+        k = 3
+        while i + k < game.height and i+k < game.width:
+            
+            window.append(game.__board__[i+k][k]**3)
+            tempsum = sum(window)
+            window.pop(0)
+            if tempsum == 3*(2**3):
+                score += 1
+            if tempsum == 3:
+                score -= 1
+            
+            k+=1
+    
+    #do the diagonals starting at the top
+    for j in range(1,game.width - 4 + 1):
+        #take first 3
+        window = [game.__board__[0][j]**3,
+                  game.__board__[1][j+1]**3,
+                  game.__board__[2][j+2]**3]
+        
+        k = 3
+        while j + k < game.height and j+k < game.width:
+            
+            window.append(game.__board__[k][j+k]**3)
+            tempsum = sum(window)
+            window.pop(0)
+            if tempsum == 3*(2**3):
+                score += 1
+            if tempsum == 3:
+                score -= 1
+            
+            k+=1
+    
+    #--------evaluate bottom up diagonal---------------
+    window = []
+    #do the diagonals that start on the right side
+    for i in range(0,game.height - 4 + 1):
+        #take first 3
+        window = [game.__board__[i][-1]**3,
+                  game.__board__[i+1][-2]**3,
+                  game.__board__[i+2][-3]**3]
+        k = 3
+        while i + k < game.height and -1 - k > 0:
+            
+            window.append(game.__board__[i+k][-1 - k]**3)
+            tempsum = sum(window)
+            window.pop(0)
+            if tempsum == 3*(2**3):
+                score += 1
+            if tempsum == 3:
+                score -= 1
+            
+            k+=1
+    
+    #do the diagonals starting at the top
+    for j in range(3,game.width - 1):
+        #take first 3
+        window = [game.__board__[0][j]**3,
+                  game.__board__[1][j-1]**3,
+                  game.__board__[2][j-2]**3]
+        
+        k = 3
+        while j + k < game.height and j-k > 0:
+            
+            window.append(game.__board__[k][j-k]**3)
+            tempsum = sum(window)
+            window.pop(0)
+            if tempsum == 3*(2**3):
+                score += 1
+            if tempsum == 3:
+                score -= 1
+            
+            k+=1
+    
+    return score
+    
+        
+#implement minimax 
+def minimax(game):
+    '''
+    game is a SingleGame instance
+    Selects a reasonable next move for the given game
+    '''
+    return max_score(game,4)[1]

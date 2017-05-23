@@ -17,6 +17,7 @@ class Command(Enum):
 #--------define status flags --------------
 GAME_IN_PROGRESS = False
 MAIN_MENU = True
+SINGLE_PLAYER = True
 
 #--------initialize game state variables --------------
 current_game = None
@@ -24,8 +25,7 @@ MIN_DIM = 6
 BOARD_HEIGHT = 6
 BOARD_WIDTH  = 7
 
-
-print('######### CONNECT-4 V1.0 ##############')
+print('######### CONNECT-4 V2.0 ##############')
 
 def read_mainmenu_commands():
     global GAME_IN_PROGRESS
@@ -56,12 +56,14 @@ def read_mainmenu_commands():
             
 def read_game_commands():
     global current_game
+    global SINGLE_PLAYER
     
     print('######### Board View ############')
     current_game.draw(defaultdraw)
     command = -1
     optionlist = [0] + [k+1 for k in current_game.getavailmoves()]
     while True:
+        
         try:
             print('Enter column number or 0 to return to main menu.')
             instr = 'Player {} >>'.format(current_game.getCurrentPlayer())
@@ -95,15 +97,22 @@ def play_newgame():
 def play_current_game():
     global current_game
     global GAME_IN_PROGRESS
+    global SINGLE_PLAYER
     
     while current_game.status == Status.INPROGRESS:
+        
+        if SINGLE_PLAYER and not current_game.player1:
+                #computer's turn
+                print('Your computer is playing!!')
+                current_game.make_move(minimax(current_game))
+                continue
+        
         command = read_game_commands()
         if command[0] == Command.QUIT:
             return
         else:
             move = command[1]-1
             current_game.make_move(move)
-            continue
     
     print('Player',current_game.status.value,'wins!!')
     current_game.draw(defaultdraw)
@@ -150,7 +159,31 @@ def set_boardsize():
     print('Board size set to ',BOARD_HEIGHT,'x',BOARD_WIDTH)
 
 def set_playermode():
-    print('Feature not available in this version')
+    global SINGLE_PLAYER
+    
+    print('########## Player Mode ###########')
+    print('1 Single PLayer')
+    print('2 2 PLayers')
+    print('3 Return to Main Menu')
+    options = [1,2,3]
+    while True:
+        try:
+            command = int(input('Please enter an option: '))
+            if command not in options:
+                print('This option is not available.')
+                continue
+            else:
+                if command == 1:
+                    SINGLE_PLAYER = True
+                    return
+                elif command == 2:
+                    SINGLE_PLAYER = False
+                    return
+                else:
+                    return
+        except:
+            print('Option must be an integer!!')
+            continue
 
 #game loop
 while True:
